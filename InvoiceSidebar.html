@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Google Sans', Arial, sans-serif; }
+body { background: #f8f9fa; font-size: 13px; color: #202124; }
+
+.header { background: #1a73e8; color: #fff; padding: 12px 14px; font-size: 14px; font-weight: 600; }
+.header small { font-size: 11px; font-weight: 400; opacity: .8; margin-left: 6px; }
+
+.card { background: #fff; margin: 6px; border-radius: 8px; border: 1px solid #e0e0e0; }
+.card-head { background: #f1f3f4; padding: 6px 12px; font-size: 10px; font-weight: 700;
+  color: #5f6368; text-transform: uppercase; letter-spacing: .5px; border-radius: 8px 8px 0 0; }
+.card-body { padding: 10px 12px; }
+
+label { display: block; font-size: 11px; color: #5f6368; margin: 7px 0 3px; }
+label:first-child { margin-top: 0; }
+
+select, input { width: 100%; padding: 6px 8px; border: 1px solid #dadce0;
+  border-radius: 4px; font-size: 13px; color: #202124; background: #fff; outline: none; }
+select:focus, input:focus { border-color: #1a73e8; }
+
+.row2 { display: flex; gap: 6px; }
+.row2 > * { flex: 1; }
+
+.quick-btns { display: flex; gap: 4px; margin-top: 5px; flex-wrap: wrap; }
+.qbtn { padding: 3px 8px; background: #e8f0fe; border: 1px solid #c5cfe6;
+  border-radius: 12px; font-size: 11px; color: #1a73e8; cursor: pointer; }
+.qbtn:hover { background: #d2e3fc; }
+
+/* Vehicle list */
+.veh-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
+.veh-header span { font-size: 11px; color: #5f6368; }
+.link { background: none; border: none; color: #1a73e8; font-size: 11px; cursor: pointer; padding: 0; }
+.link:hover { text-decoration: underline; }
+
+.vlist { max-height: 160px; overflow-y: auto; border: 1px solid #e0e0e0; border-radius: 4px; }
+.vitem { display: flex; align-items: center; padding: 5px 8px;
+  border-bottom: 1px solid #f1f3f4; cursor: pointer; }
+.vitem:last-child { border-bottom: none; }
+.vitem:hover { background: #f8f9fa; }
+.vitem input { width: auto; margin-right: 7px; cursor: pointer; }
+.vitem label { margin: 0; cursor: pointer; font-size: 12px; color: #202124; flex: 1; }
+.vitem .sub { font-size: 10px; color: #9e9e9e; margin-left: 4px; }
+
+.empty { text-align: center; padding: 18px; color: #9e9e9e; font-size: 11px; }
+
+/* Summary */
+.summary { background: linear-gradient(135deg, #e8f0fe, #f0f4ff);
+  border: 1px solid #c5cfe6; border-radius: 8px; margin: 6px; padding: 10px 12px; }
+.srow { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 3px; }
+.srow.dim { color: #5f6368; }
+.srow.total { font-size: 15px; font-weight: 700; padding-top: 6px;
+  border-top: 1px solid #c5cfe6; margin-top: 5px; color: #1a73e8; }
+
+/* Mode switch */
+.mode-switch { display: flex; gap: 4px; margin: 6px; }
+.mode-btn { flex: 1; padding: 6px; border: 1px solid #dadce0; border-radius: 6px;
+  background: #fff; font-size: 11px; cursor: pointer; text-align: center; color: #5f6368; }
+.mode-btn.active { background: #1a73e8; color: #fff; border-color: #1a73e8; font-weight: 600; }
+
+/* Create button */
+.btn-create { display: block; width: calc(100% - 12px); margin: 6px;
+  background: #1a73e8; color: #fff; border: none; padding: 10px;
+  border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.btn-create:hover { background: #1557b0; }
+.btn-create:disabled { background: #9e9e9e; cursor: default; }
+
+.msg { margin: 0 6px 6px; padding: 8px 10px; border-radius: 6px; font-size: 12px; display: none; }
+.msg.ok { background: #e6f4ea; color: #137333; border: 1px solid #a8d5b5; }
+.msg.err { background: #fce8e6; color: #c5221f; border: 1px solid #f5c6c4; }
+
+.invoice-row { display: flex; gap: 6px; align-items: flex-end; }
+.invoice-row > div:first-child { flex: 1; }
+.btn-auto { padding: 6px 10px; background: #f1f3f4; border: 1px solid #dadce0;
+  border-radius: 4px; font-size: 11px; cursor: pointer; white-space: nowrap; }
+.btn-auto:hover { background: #e8eaed; }
+
+.loader { text-align: center; padding: 16px; color: #5f6368; font-size: 11px; }
+.mem-tip { font-size: 11px; color: #137333; background: #e6f4ea; border-radius: 4px;
+  padding: 4px 8px; margin-bottom: 6px; display: none; }
+</style>
+</head>
+<body>
+
+<div class="header">🧾 Создание счёта <small id="modeLabel">— выбор контрагента</small></div>
+
+<!-- Режим -->
+<div class="mode-switch">
+  <button class="mode-btn active" onclick="setMode('single')" id="btnSingle">👤 Один плательщик</button>
+  <button class="mode-btn" onclick="setMode('all')" id="btnAll">👥 Всем сразу</button>
+</div>
+
+<!-- Контрагент (только в режиме single) -->
+<div class="card" id="cardPayer">
+  <div class="card-head">Плательщик</div>
+  <div class="card-body">
+    <select id="payerSel" onchange="onPayerChange()">
+      <option value="">— загрузка...</option>
+    </select>
+  </div>
+</div>
+
+<!-- Автомобили (только в режиме single) -->
+<div class="card" id="cardVeh">
+  <div class="card-head">Автомобили</div>
+  <div class="card-body">
+    <div class="mem-tip" id="memTip"></div>
+    <div class="veh-header">
+      <span id="vehCount">—</span>
+      <div>
+        <button class="link" onclick="selAll(true)">Все</button> &nbsp;
+        <button class="link" onclick="selAll(false)">Снять</button>
+      </div>
+    </div>
+    <div class="vlist" id="vlist"><div class="empty">Выберите плательщика</div></div>
+  </div>
+</div>
+
+<!-- Период -->
+<div class="card">
+  <div class="card-head">Период</div>
+  <div class="card-body">
+    <div class="row2">
+      <div><label>С</label><input type="date" id="dFrom" onchange="recalc()"></div>
+      <div><label>По</label><input type="date" id="dTo" onchange="recalc()"></div>
+    </div>
+    <div class="quick-btns">
+      <button class="qbtn" onclick="setM(1)">1 мес</button>
+      <button class="qbtn" onclick="setM(3)">3 мес</button>
+      <button class="qbtn" onclick="setM(6)">6 мес</button>
+      <button class="qbtn" onclick="setM(12)">12 мес</button>
+      <button class="qbtn" onclick="setNextMonth()">Следующий месяц</button>
+    </div>
+  </div>
+</div>
+
+<!-- Стоимость -->
+<div class="card">
+  <div class="card-head">Стоимость</div>
+  <div class="card-body">
+    <label>Цена за 1 авто / 1 месяц, ₽ (без НДС)</label>
+    <input type="number" id="price" value="400" min="0" step="50" oninput="recalc()">
+    <div style="margin-top:6px;font-size:11px;color:#5f6368">НДС 22% рассчитывается автоматически</div>
+  </div>
+</div>
+
+<!-- Итог -->
+<div class="summary">
+  <div class="srow dim"><span>Авто:</span><span id="sCars">—</span></div>
+  <div class="srow dim"><span>Период:</span><span id="sMonths">—</span></div>
+  <div class="srow"><span>Без НДС:</span><span id="sBase">—</span></div>
+  <div class="srow dim"><span>НДС 22%:</span><span id="sTax">—</span></div>
+  <div class="srow total"><span>ИТОГО:</span><span id="sTotal">—</span></div>
+</div>
+
+<!-- Номер и дата счёта -->
+<div class="card">
+  <div class="card-head">Реквизиты счёта</div>
+  <div class="card-body">
+    <label>Номер счёта</label>
+    <div class="invoice-row">
+      <div><input type="text" id="invNum" placeholder="ТЛМ-2025-001"></div>
+      <button class="btn-auto" onclick="genNum()">Авто</button>
+    </div>
+    <label>Дата выставления</label>
+    <input type="date" id="invDate">
+  </div>
+</div>
+
+<div class="msg" id="msg"></div>
+<button class="btn-create" id="btnCreate" onclick="doCreate()">💾 Создать счёт</button>
+
+<script>
+var mode = 'single';
+var allVehicles = [];
+var payerVehicles = [];
+var allPayers = [];
+
+// Init
+(function(){
+  var t = new Date();
+  document.getElementById('invDate').value = fmt(t);
+  setNextMonth();
+  genNum();
+})();
+
+// Load data
+google.script.run.withSuccessHandler(function(payers){
+  allPayers = payers;
+  var s = document.getElementById('payerSel');
+  s.innerHTML = '<option value="">— выберите —</option>';
+  payers.forEach(function(p){
+    var o = document.createElement('option');
+    o.value = p.id; o.textContent = p.name;
+    s.appendChild(o);
+  });
+}).withFailureHandler(err).getPayersList();
+
+google.script.run.withSuccessHandler(function(v){ allVehicles = v; })
+  .withFailureHandler(err).getAllVehicles();
+
+function setMode(m){
+  mode = m;
+  document.getElementById('btnSingle').className = 'mode-btn' + (m==='single'?' active':'');
+  document.getElementById('btnAll').className    = 'mode-btn' + (m==='all'?' active':'');
+  document.getElementById('cardPayer').style.display = m==='single' ? '' : 'none';
+  document.getElementById('cardVeh').style.display   = m==='single' ? '' : 'none';
+  document.getElementById('modeLabel').textContent   = m==='single' ? '— выбор контрагента' : '— все плательщики';
+  recalc();
+}
+
+function onPayerChange(){
+  var pid = document.getElementById('payerSel').value;
+  var vl  = document.getElementById('vlist');
+  if(!pid){ vl.innerHTML='<div class="empty">Выберите плательщика</div>'; payerVehicles=[]; recalc(); return; }
+
+  payerVehicles = allVehicles.filter(function(v){
+    return String(v.contragentId)===String(pid) || String(v.payerName)===String(pid);
+  });
+
+  if(!payerVehicles.length){ vl.innerHTML='<div class="empty">Нет авто у этого плательщика</div>'; recalc(); return; }
+
+  vl.innerHTML='';
+  payerVehicles.forEach(function(v,i){
+    var d = document.createElement('div'); d.className='vitem';
+    d.innerHTML = '<input type="checkbox" id="c'+i+'" checked onchange="recalc()">' +
+      '<label for="c'+i+'"><b>'+(v.vin||v.id||'—')+'</b>' +
+      '<span class="sub">'+(v.model||'')+(v.regNum?' · '+v.regNum:'')+'</span></label>';
+    vl.appendChild(d);
+  });
+  document.getElementById('vehCount').textContent = payerVehicles.length+' авто';
+
+  // Загружаем память по этому плательщику
+  google.script.run.withSuccessHandler(function(mem){
+    if (!mem) { recalc(); return; }
+    if (mem.price)  document.getElementById('price').value = mem.price;
+    if (mem.nextFrom && mem.nextTo) {
+      document.getElementById('dFrom').value = mem.nextFrom;
+      document.getElementById('dTo').value   = mem.nextTo;
+      showMemTip('💡 Период и цена из предыдущего счёта');
+    }
+    recalc();
+  }).getPayerMemory(pid);
+
+  recalc();
+}
+
+function selAll(s){ document.querySelectorAll('#vlist input').forEach(function(c){c.checked=s;}); recalc(); }
+
+function cntSelected(){ return document.querySelectorAll('#vlist input:checked').length; }
+
+function getMonths(){
+  var f=new Date(document.getElementById('dFrom').value);
+  var t=new Date(document.getElementById('dTo').value);
+  if(isNaN(f)||isNaN(t)||t<=f) return 0;
+  var m = (t.getFullYear()-f.getFullYear())*12+(t.getMonth()-f.getMonth());
+  var extra = t.getDate()-f.getDate();
+  if(extra>0) m += Math.round(extra/30*10)/10;
+  return Math.round(Math.max(0,m)*10)/10;
+}
+
+function recalc(){
+  var cars   = mode==='single' ? cntSelected() : allVehicles.length;
+  var months = getMonths();
+  var price  = parseFloat(document.getElementById('price').value)||0;
+  var base   = Math.round(cars*months*price);
+  var tax    = Math.round(base*0.22);
+  var total  = base+tax;
+
+  document.getElementById('sCars').textContent   = cars || '—';
+  document.getElementById('sMonths').textContent = months ? months+' мес.' : '—';
+  document.getElementById('sBase').textContent   = base ? n(base)+' ₽' : '—';
+  document.getElementById('sTax').textContent    = tax  ? n(tax) +' ₽' : '—';
+  document.getElementById('sTotal').textContent  = total? n(total)+' ₽' : '—';
+
+  document.getElementById('btnCreate').disabled = (!cars||!months||!price);
+}
+
+function n(x){ return x.toLocaleString('ru-RU'); }
+function fmt(d){ return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
+function pad(x){ return String(x).padStart(2,'0'); }
+
+function setM(months){
+  var f=document.getElementById('dFrom').value;
+  if(!f){ setNextMonth(); f=document.getElementById('dFrom').value; }
+  var fd=new Date(f);
+  var td=new Date(fd.getFullYear(), fd.getMonth()+months, 0);
+  document.getElementById('dTo').value=fmt(td);
+  recalc();
+}
+
+function setNextMonth(){
+  var t=new Date();
+  var f=new Date(t.getFullYear(), t.getMonth()+1, 1);
+  var to=new Date(t.getFullYear(), t.getMonth()+2, 0);
+  document.getElementById('dFrom').value=fmt(f);
+  document.getElementById('dTo').value=fmt(to);
+  recalc();
+}
+
+function genNum(){
+  google.script.run.withSuccessHandler(function(n){ document.getElementById('invNum').value=n; }).getNextInvoiceNumber();
+}
+
+function doCreate(){
+  var invNum  = document.getElementById('invNum').value.trim();
+  var invDate = document.getElementById('invDate').value;
+  var dFrom   = document.getElementById('dFrom').value;
+  var dTo     = document.getElementById('dTo').value;
+  var price   = parseFloat(document.getElementById('price').value)||0;
+
+  if(!invNum)  { showMsg('Укажите номер счёта','err'); return; }
+  if(!dFrom||!dTo){ showMsg('Укажите период','err'); return; }
+
+  if(mode==='single'){
+    var pid = document.getElementById('payerSel').value;
+    var pname = document.getElementById('payerSel').options[document.getElementById('payerSel').selectedIndex].text;
+    if(!pid){ showMsg('Выберите плательщика','err'); return; }
+
+    var vins=[];
+    payerVehicles.forEach(function(v,i){
+      if(document.getElementById('c'+i)&&document.getElementById('c'+i).checked)
+        vins.push(v.vin||v.id);
+    });
+    if(!vins.length){ showMsg('Выберите хотя бы одно авто','err'); return; }
+
+    var months=getMonths(), base=Math.round(vins.length*months*price), tax=Math.round(base*.22);
+    submit([{num:invNum,payerId:pid,payerName:pname,vins:vins.join(', '),dFrom:dFrom,dTo:dTo,amount:base+tax,invDate:invDate}]);
+
+  } else {
+    // Всем сразу — отдельный счёт каждому плательщику
+    var invoices=[];
+    allPayers.forEach(function(p,pi){
+      var pveh=allVehicles.filter(function(v){ return String(v.contragentId)===String(p.id)||String(v.payerName)===String(p.id); });
+      if(!pveh.length) return;
+      var vins=pveh.map(function(v){return v.vin||v.id;});
+      var months=getMonths(), base=Math.round(vins.length*months*price), tax=Math.round(base*.22);
+      var num=invNum+(allPayers.length>1?'-'+pad(pi+1):'');
+      invoices.push({num:num,payerId:p.id,payerName:p.name,vins:vins.join(', '),dFrom:dFrom,dTo:dTo,amount:base+tax,invDate:invDate});
+    });
+    if(!invoices.length){ showMsg('Нет авто ни у одного плательщика','err'); return; }
+    submit(invoices);
+  }
+}
+
+function submit(invoices){
+  document.getElementById('btnCreate').disabled=true;
+  document.getElementById('btnCreate').textContent='⏳ Сохранение...';
+  google.script.run
+    .withSuccessHandler(function(r){
+      document.getElementById('btnCreate').disabled=false;
+      document.getElementById('btnCreate').textContent='💾 Создать счёт';
+      if(r.ok) {
+        showMsg('✅ Создано счетов: '+r.count+'. Лист «Счета» обновлён.','ok');
+        genNum();
+        // Сохраняем память и авто-сдвигаем период для следующего счёта
+        if(mode==='single'){
+          var pid = document.getElementById('payerSel').value;
+          var price = parseFloat(document.getElementById('price').value)||0;
+          var dTo = document.getElementById('dTo').value;
+          advancePeriod();
+          google.script.run.savePayerMemory(pid, price, document.getElementById('dFrom').value, document.getElementById('dTo').value);
+          showMemTip('🔄 Период сдвинут на следующий — готов к следующему счёту');
+        }
+      }
+      else     showMsg('❌ '+r.error,'err');
+    })
+    .withFailureHandler(function(e){
+      document.getElementById('btnCreate').disabled=false;
+      document.getElementById('btnCreate').textContent='💾 Создать счёт';
+      err(e);
+    })
+    .saveInvoices(invoices);
+}
+
+function showMsg(t,c){ var m=document.getElementById('msg'); m.textContent=t; m.className='msg '+c; m.style.display='block'; if(c==='ok') setTimeout(function(){m.style.display='none';},5000); }
+function err(e){ showMsg('Ошибка: '+e,'err'); }
+
+function advancePeriod(){
+  // Сдвигаем период на следующий такой же интервал
+  var f = new Date(document.getElementById('dFrom').value);
+  var t = new Date(document.getElementById('dTo').value);
+  if(isNaN(f)||isNaN(t)) return;
+  var months = (t.getFullYear()-f.getFullYear())*12+(t.getMonth()-f.getMonth())+1;
+  var nf = new Date(t.getFullYear(), t.getMonth()+1, 1);
+  var nt = new Date(nf.getFullYear(), nf.getMonth()+months-1+1, 0);
+  document.getElementById('dFrom').value = fmt(nf);
+  document.getElementById('dTo').value   = fmt(nt);
+  recalc();
+}
+
+function showMemTip(text){
+  var el = document.getElementById('memTip');
+  el.textContent = text; el.style.display='block';
+  setTimeout(function(){ el.style.display='none'; }, 5000);
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Google Sans', Arial, sans-serif; }
+body { background: #f8f9fa; font-size: 13px; color: #202124; }
+
+.header { background: #1a73e8; color: #fff; padding: 12px 14px; font-size: 14px; font-weight: 600; }
+
+.search-box { margin: 8px; position: relative; }
+.search-box input {
+  width: 100%; padding: 9px 36px 9px 12px;
+  border: 2px solid #dadce0; border-radius: 8px;
+  font-size: 14px; outline: none; background: #fff;
+}
+.search-box input:focus { border-color: #1a73e8; }
+.search-box .clear-btn {
+  position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+  background: none; border: none; color: #9e9e9e; cursor: pointer;
+  font-size: 16px; display: none; line-height: 1;
+}
+
+.filter-row { display: flex; gap: 4px; margin: 0 8px 6px; }
+.filter-btn {
+  flex: 1; padding: 5px; border: 1px solid #dadce0; border-radius: 16px;
+  background: #fff; font-size: 11px; font-weight: 600; cursor: pointer;
+  color: #5f6368; text-align: center;
+}
+.filter-btn.active { background: #e8f0fe; color: #1a73e8; border-color: #1a73e8; }
+
+.results-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 0 10px 4px; font-size: 11px; color: #5f6368;
+}
+
+.result-list { margin: 0 6px; }
+
+.result-card {
+  background: #fff; border: 1px solid #e0e0e0; border-radius: 8px;
+  margin-bottom: 5px; overflow: hidden; cursor: pointer;
+  transition: box-shadow .15s, border-color .15s;
+}
+.result-card:hover { border-color: #1a73e8; box-shadow: 0 2px 8px rgba(26,115,232,.15); }
+.result-card.selected { border-color: #1a73e8; background: #f0f6ff; }
+
+.card-main { padding: 8px 10px; }
+.vin { font-size: 13px; font-weight: 700; letter-spacing: .3px; }
+.vin mark { background: #fff3cd; border-radius: 2px; padding: 0 1px; }
+.model { font-size: 11px; color: #5f6368; margin-top: 2px; }
+.tracker { font-size: 11px; color: #5f6368; }
+.tracker mark { background: #d2e3fc; border-radius: 2px; }
+
+.card-pills { display: flex; gap: 4px; padding: 0 10px 8px; flex-wrap: wrap; }
+.pill { font-size: 10px; padding: 2px 7px; border-radius: 10px; font-weight: 500; }
+.pill-payer   { background: #e8f0fe; color: #1a73e8; }
+.pill-reg     { background: #f3f4f6; color: #5f6368; }
+.pill-conn-ok { background: #e6f4ea; color: #137333; }
+.pill-conn-ex { background: #fce8e6; color: #c5221f; }
+.pill-conn-no { background: #f3f4f6; color: #9e9e9e; }
+.pill-man     { background: #e6f4ea; color: #0F9D58; }
+.pill-api     { background: #e8f0fe; color: #1a73e8; }
+
+.goto-btn {
+  display: block; width: 100%; padding: 5px;
+  background: #f1f3f4; border: none; border-top: 1px solid #f1f3f4;
+  font-size: 11px; color: #1a73e8; cursor: pointer; text-align: center;
+}
+.goto-btn:hover { background: #e8f0fe; }
+
+.empty { text-align: center; padding: 30px 16px; color: #9e9e9e; font-size: 12px; }
+.empty .icon { font-size: 32px; margin-bottom: 8px; }
+
+.count-badge {
+  display: inline-block; background: #1a73e8; color: #fff;
+  border-radius: 10px; padding: 1px 7px; font-size: 10px; font-weight: 700;
+}
+</style>
+</head>
+<body>
+
+<div class="header">🔍 Поиск по автомобилям</div>
+
+<div class="search-box">
+  <input type="text" id="q" placeholder="VIN, трекер, гос.номер, модель..." 
+         oninput="onInput()" autocomplete="off" autofocus>
+  <button class="clear-btn" id="clearBtn" onclick="clearSearch()">×</button>
+</div>
+
+<div class="filter-row">
+  <button class="filter-btn active" onclick="setFilter('all',this)">Все</button>
+  <button class="filter-btn" onclick="setFilter('vin',this)">VIN</button>
+  <button class="filter-btn" onclick="setFilter('tracker',this)">Трекер</button>
+  <button class="filter-btn" onclick="setFilter('reg',this)">Гос.номер</button>
+  <button class="filter-btn" onclick="setFilter('payer',this)">Плательщик</button>
+</div>
+
+<div class="results-header">
+  <span id="resultInfo">Введите запрос для поиска</span>
+</div>
+
+<div class="result-list" id="results">
+  <div class="empty"><div class="icon">🔍</div>Начни вводить VIN или номер трекера</div>
+</div>
+
+<script>
+var allVehicles = [];
+var filter = 'all';
+var selectedRow = -1;
+
+// Load all vehicles on open
+google.script.run
+  .withSuccessHandler(function(data){
+    allVehicles = data;
+    document.getElementById('resultInfo').textContent = 'Загружено: ' + data.length + ' авто';
+  })
+  .withFailureHandler(function(e){ document.getElementById('resultInfo').textContent = 'Ошибка загрузки: '+e; })
+  .getAllVehiclesForSearch();
+
+function setFilter(f, btn){
+  filter = f;
+  document.querySelectorAll('.filter-btn').forEach(function(b){ b.className='filter-btn'; });
+  btn.className = 'filter-btn active';
+  doSearch();
+}
+
+function onInput(){
+  var q = document.getElementById('q').value;
+  document.getElementById('clearBtn').style.display = q ? 'block' : 'none';
+  doSearch();
+}
+
+function clearSearch(){
+  document.getElementById('q').value = '';
+  document.getElementById('clearBtn').style.display = 'none';
+  document.getElementById('resultInfo').textContent = 'Загружено: ' + allVehicles.length + ' авто';
+  document.getElementById('results').innerHTML = '<div class="empty"><div class="icon">🔍</div>Начни вводить VIN или номер трекера</div>';
+  selectedRow = -1;
+}
+
+function doSearch(){
+  var q = document.getElementById('q').value.trim().toLowerCase();
+  if(!q){ clearSearch(); return; }
+
+  var results = allVehicles.filter(function(v){
+    if(filter === 'vin')     return v.vin.toLowerCase().indexOf(q) !== -1;
+    if(filter === 'tracker') return v.tracker.toLowerCase().indexOf(q) !== -1;
+    if(filter === 'reg')     return v.reg.toLowerCase().indexOf(q) !== -1;
+    if(filter === 'payer')   return v.payer.toLowerCase().indexOf(q) !== -1;
+    // all: search VIN, tracker, reg, model, payer
+    return v.vin.toLowerCase().indexOf(q) !== -1 ||
+           v.tracker.toLowerCase().indexOf(q) !== -1 ||
+           v.reg.toLowerCase().indexOf(q) !== -1 ||
+           v.model.toLowerCase().indexOf(q) !== -1 ||
+           v.payer.toLowerCase().indexOf(q) !== -1;
+  });
+
+  document.getElementById('resultInfo').innerHTML =
+    'Найдено: <span class="count-badge">' + results.length + '</span>';
+
+  if(!results.length){
+    document.getElementById('results').innerHTML =
+      '<div class="empty"><div class="icon">😕</div>Ничего не найдено по «' + esc(q) + '»</div>';
+    return;
+  }
+
+  var html = '';
+  results.forEach(function(v){
+    var vinHl    = highlight(v.vin, q);
+    var trackHl  = highlight(v.tracker, q);
+    var modelHl  = highlight(v.model, q);
+    var regHl    = highlight(v.reg, q);
+    var isMan    = v.id.indexOf('MAN-') === 0;
+
+    // Подключен до
+    var connPill = '';
+    if(v.connectedTo){
+      var dt = new Date(v.connectedTo);
+      var today = new Date(); today.setHours(0,0,0,0);
+      var cls = dt >= today ? 'pill-conn-ok' : 'pill-conn-ex';
+      var label = dt >= today ? 'До ' + fmtDate(dt) : '⚠ Истёк ' + fmtDate(dt);
+      connPill = '<span class="pill '+cls+'">' + label + '</span>';
+    } else {
+      connPill = '<span class="pill pill-conn-no">Подключен до: —</span>';
+    }
+
+    html +=
+      '<div class="result-card" onclick="selectCard(this,' + v.row + ')">' +
+        '<div class="card-main">' +
+          '<div class="vin">' + vinHl + '</div>' +
+          '<div class="model">' + (modelHl || '—') + '</div>' +
+          (v.tracker ? '<div class="tracker">📡 ' + trackHl + '</div>' : '') +
+        '</div>' +
+        '<div class="card-pills">' +
+          (v.payer ? '<span class="pill pill-payer">🏢 ' + esc(v.payer.substring(0,22)) + '</span>' : '') +
+          (v.reg   ? '<span class="pill pill-reg">' + regHl + '</span>' : '') +
+          connPill +
+          '<span class="pill ' + (isMan?'pill-man':'pill-api') + '">' + (isMan?'✋ Ручной':'🔗 API') + '</span>' +
+        '</div>' +
+        '<button class="goto-btn" onclick="goToRow(event,' + v.row + ')">↗ Перейти к строке ' + v.row + '</button>' +
+      '</div>';
+  });
+
+  document.getElementById('results').innerHTML = html;
+}
+
+function selectCard(el, row){
+  document.querySelectorAll('.result-card').forEach(function(c){ c.className='result-card'; });
+  el.className = 'result-card selected';
+  selectedRow = row;
+}
+
+function goToRow(e, row){
+  e.stopPropagation();
+  google.script.run.navigateToRow(row);
+}
+
+function highlight(text, q){
+  if(!text) return '';
+  var safe = esc(text);
+  var safeQ = esc(q).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+  return safe.replace(new RegExp('('+safeQ+')', 'gi'), '<mark>$1</mark>');
+}
+
+function esc(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function fmtDate(d){
+  return ('0'+d.getDate()).slice(-2)+'.'+('0'+(d.getMonth()+1)).slice(-2)+'.'+d.getFullYear();
+}
+</script>
+</body>
+</html>

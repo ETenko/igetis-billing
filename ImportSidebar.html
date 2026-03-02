@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Google Sans', Arial, sans-serif; }
+body { background: #f8f9fa; font-size: 13px; color: #202124; }
+
+.header { background: #0F9D58; color: #fff; padding: 12px 14px; font-size: 14px; font-weight: 600; }
+
+.tabs { display: flex; background: #fff; border-bottom: 2px solid #e0e0e0; }
+.tab { flex: 1; padding: 9px; text-align: center; font-size: 12px; font-weight: 600;
+  color: #5f6368; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+.tab.active { color: #0F9D58; border-bottom-color: #0F9D58; }
+
+.panel { display: none; }
+.panel.active { display: block; }
+
+.card { background: #fff; margin: 6px; border-radius: 8px; border: 1px solid #e0e0e0; }
+.card-head { background: #f1f3f4; padding: 6px 12px; font-size: 10px; font-weight: 700;
+  color: #5f6368; text-transform: uppercase; letter-spacing: .5px; border-radius: 8px 8px 0 0; }
+.card-body { padding: 10px 12px; }
+
+label { display: block; font-size: 11px; color: #5f6368; margin: 6px 0 3px; }
+label:first-child { margin-top: 0; }
+input, select, textarea { width: 100%; padding: 6px 8px; border: 1px solid #dadce0;
+  border-radius: 4px; font-size: 13px; color: #202124; outline: none; }
+input:focus, select:focus, textarea:focus { border-color: #0F9D58; }
+textarea { resize: vertical; min-height: 60px; }
+
+.row2 { display: flex; gap: 6px; }
+.row2 > * { flex: 1; }
+
+.btn { display: block; width: calc(100% - 12px); margin: 6px;
+  padding: 9px; border: none; border-radius: 6px;
+  font-size: 13px; font-weight: 600; cursor: pointer; }
+.btn-green { background: #0F9D58; color: #fff; }
+.btn-green:hover { background: #0A7A46; }
+.btn-blue  { background: #1A73E8; color: #fff; }
+.btn-blue:hover  { background: #1557B0; }
+.btn-gray  { background: #f1f3f4; color: #202124; border: 1px solid #dadce0; }
+.btn-gray:hover  { background: #e8eaed; }
+.btn:disabled  { background: #9e9e9e; cursor: default; }
+
+.file-zone { border: 2px dashed #dadce0; border-radius: 8px; padding: 20px;
+  text-align: center; cursor: pointer; margin: 0 0 8px; transition: border-color .2s; }
+.file-zone:hover { border-color: #0F9D58; }
+.file-zone input { display: none; }
+.file-zone .icon { font-size: 28px; margin-bottom: 6px; }
+.file-zone .hint { font-size: 11px; color: #5f6368; }
+
+.preview-table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 6px; }
+.preview-table th { background: #0F9D58; color: #fff; padding: 4px 6px; text-align: left; }
+.preview-table td { padding: 3px 6px; border-bottom: 1px solid #f1f3f4; }
+.preview-table tr:nth-child(even) td { background: #f8f9fa; }
+
+.badge { display: inline-block; padding: 2px 6px; border-radius: 10px; font-size: 10px; font-weight: 600; }
+.badge-api { background: #e8f0fe; color: #1A73E8; }
+.badge-man { background: #e6f4ea; color: #0F9D58; }
+
+.msg { margin: 0 6px 6px; padding: 8px 10px; border-radius: 6px; font-size: 12px; display: none; }
+.msg.ok  { background: #e6f4ea; color: #137333; border: 1px solid #a8d5b5; }
+.msg.err { background: #fce8e6; color: #c5221f; border: 1px solid #f5c6c4; }
+
+.tpl-link { display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+  background: #e8f0fe; border-radius: 6px; margin: 0 6px 6px; font-size: 12px; }
+.tpl-link a { color: #1A73E8; font-weight: 600; cursor: pointer; }
+
+.cnt { font-size: 11px; color: #5f6368; margin: 4px 12px; }
+.required-star { color: #D93025; }
+</style>
+</head>
+<body>
+
+<div class="header">📥 Импорт данных</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('import')">📂 Из файла</div>
+  <div class="tab" onclick="switchTab('manual_veh')">🚛 Добавить авто</div>
+  <div class="tab" onclick="switchTab('manual_pay')">🏢 Добавить плательщика</div>
+</div>
+
+<!-- ====== TAB 1: IMPORT ====== -->
+<div class="panel active" id="panel_import">
+
+  <div class="tpl-link">
+    📋 <span>Нужен шаблон?</span>
+    <a onclick="downloadTemplate()">Скачать шаблон .xlsx</a>
+  </div>
+  <div id="tplInstructions" style="display:none;margin:0 6px 6px;padding:10px 12px;background:#fff3cd;border:1px solid #ffc107;border-radius:6px;font-size:12px;line-height:1.6">
+    <b>📂 Как подключить шаблон:</b><br>
+    1. Загрузи файл <b>igetis_import_template.xlsx</b> в Google Drive<br>
+    2. Имя файла должно быть точно: <code style="background:#f1f3f4;padding:1px 4px;border-radius:3px">igetis_import_template.xlsx</code><br>
+    3. Можно положить в любую папку — скрипт найдёт по имени<br><br>
+    <b>Или</b> просто используй файл который скачали из Claude — он уже есть у тебя.
+  </div>
+
+  <div class="card">
+    <div class="card-head">Выбери файл (.xlsx или .csv)</div>
+    <div class="card-body">
+      <div class="file-zone" onclick="document.getElementById('fileInput').click()" id="dropZone">
+        <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" onchange="onFileSelected(event)">
+        <div class="icon">📂</div>
+        <div style="font-weight:600;margin-bottom:4px">Нажми или перетащи файл</div>
+        <div class="hint">.xlsx, .xls, .csv</div>
+      </div>
+      <div id="fileInfo" style="display:none;font-size:12px;color:#0F9D58;font-weight:600;margin-bottom:6px"></div>
+    </div>
+  </div>
+
+  <div class="card" id="cardPreview" style="display:none">
+    <div class="card-head">Предпросмотр <span id="previewCount"></span></div>
+    <div class="card-body" style="overflow-x:auto">
+      <div id="previewContent"></div>
+    </div>
+  </div>
+
+  <div class="cnt" id="importStats" style="display:none"></div>
+  <div class="msg" id="importMsg"></div>
+  <button class="btn btn-green" id="btnImport" style="display:none" onclick="doImport()">✅ Импортировать</button>
+</div>
+
+<!-- ====== TAB 2: РУЧНОЕ АВТО ====== -->
+<div class="panel" id="panel_manual_veh">
+  <div class="card">
+    <div class="card-head">Данные автомобиля</div>
+    <div class="card-body">
+      <label>VIN <span class="required-star">*</span></label>
+      <input type="text" id="v_vin" placeholder="X9F3XXX00XXX000001" maxlength="17">
+      <label>Марка / Модель <span class="required-star">*</span></label>
+      <input type="text" id="v_model" placeholder="FAW J7 2023">
+      <div class="row2">
+        <div><label>Гос. номер</label><input type="text" id="v_reg" placeholder="А123БВ777"></div>
+        <div><label>Номер трекера</label><input type="text" id="v_tracker" placeholder="IGT-00123"></div>
+      </div>
+      <div class="row2">
+        <div><label>Дата монтажа</label><input type="date" id="v_mount"></div>
+        <div><label>Дата подключения</label><input type="date" id="v_connect"></div>
+      </div>
+      <label>Плательщик <span class="required-star">*</span></label>
+      <div style="display:flex;gap:4px;align-items:center">
+        <select id="v_payer" style="flex:1" onchange="onPayerSelChange()">
+          <option value="">— загрузка...</option>
+          <option value="__new__">➕ Создать нового плательщика...</option>
+        </select>
+      </div>
+      <!-- Инлайн форма нового плательщика -->
+      <div id="newPayerBlock" style="display:none;background:#f1fbf6;border:1px solid #a8d5b5;border-radius:6px;padding:8px;margin-top:6px">
+        <div style="font-size:11px;font-weight:700;color:#0A7A46;margin-bottom:6px">Новый плательщик</div>
+        <label>Название юрлица <span class="required-star">*</span></label>
+        <input type="text" id="np_name" placeholder='ООО «Компания»'>
+        <label>Номер договора <span class="required-star">*</span></label>
+        <input type="text" id="np_contract" placeholder="ДГ-2025-001">
+        <div class="row2" style="margin-top:4px">
+          <div><label>Телефон</label><input type="text" id="np_phone" placeholder="+7..."></div>
+          <div><label>Email</label><input type="text" id="np_email" placeholder="email@..."></div>
+        </div>
+        <button style="margin-top:6px;width:100%;padding:6px;background:#0F9D58;color:#fff;border:none;border-radius:4px;font-size:12px;font-weight:600;cursor:pointer" onclick="createPayerInline()">💾 Создать и выбрать</button>
+        <button style="margin-top:4px;width:100%;padding:4px;background:none;border:none;color:#5f6368;font-size:11px;cursor:pointer" onclick="cancelNewPayer()">Отмена</button>
+      </div>
+      <label>Эксплуатант</label>
+      <input type="text" id="v_operator" placeholder="ООО Компания или ФИО">
+      <label>Подключен до</label>
+      <input type="date" id="v_connectedTo">
+      <div style="font-size:10px;color:#5f6368;margin-top:2px">Заполнится автоматически из оплаченного счёта</div>
+      <label>Комментарий</label>
+      <textarea id="v_comment" rows="2"></textarea>
+    </div>
+  </div>
+  <div class="msg" id="vehMsg"></div>
+  <button class="btn btn-green" onclick="saveVehicle()">💾 Добавить автомобиль</button>
+</div>
+
+<!-- ====== TAB 3: РУЧНОЙ ПЛАТЕЛЬЩИК ====== -->
+<div class="panel" id="panel_manual_pay">
+  <div class="card">
+    <div class="card-head">Данные плательщика</div>
+    <div class="card-body">
+      <label>Название юрлица <span class="required-star">*</span></label>
+      <input type="text" id="p_name" placeholder='ООО «Компания»'>
+      <label>Номер договора <span class="required-star">*</span></label>
+      <input type="text" id="p_contract" placeholder="ДГ-2025-001">
+      <label>Контактное лицо</label>
+      <input type="text" id="p_contact" placeholder="Иванов Иван Иванович">
+      <div class="row2">
+        <div><label>Телефон</label><input type="text" id="p_phone" placeholder="+79991234567"></div>
+        <div><label>Email</label><input type="text" id="p_email" placeholder="ivan@company.ru"></div>
+      </div>
+      <label>Комментарий</label>
+      <textarea id="p_comment" rows="2"></textarea>
+      <div style="margin-top:8px;padding:6px 8px;background:#e6f4ea;border-radius:4px;font-size:11px;color:#137333">
+        🔑 ID будет сгенерирован автоматически: <b>MAN-YYYYMMDD-XXXX</b><br>
+        Зелёный фон в таблице — отличает от API-плательщиков (синий фон)
+      </div>
+    </div>
+  </div>
+  <div class="msg" id="payMsg"></div>
+  <button class="btn btn-green" onclick="savePayer()">💾 Добавить плательщика</button>
+</div>
+
+<script>
+var parsedData = null;
+var importType = null; // 'vehicles' or 'payers'
+
+// Load payers for vehicle form
+google.script.run.withSuccessHandler(function(payers){
+  var s = document.getElementById('v_payer');
+  s.innerHTML = '<option value="">— выберите —</option>';
+  payers.forEach(function(p){
+    var o = document.createElement('option');
+    o.value = p.id; o.textContent = p.name;
+    s.appendChild(o);
+  });
+}).getPayersList();
+
+function switchTab(name){
+  document.querySelectorAll('.tab').forEach(function(t,i){
+    t.className = 'tab' + ((['import','manual_veh','manual_pay'][i]===name)?' active':'');
+  });
+  document.querySelectorAll('.panel').forEach(function(p){
+    p.className = 'panel' + (p.id==='panel_'+name?' active':'');
+  });
+}
+
+// ====== FILE IMPORT ======
+function onFileSelected(e){
+  var file = e.target.files[0];
+  if(!file) return;
+  document.getElementById('fileInfo').style.display='block';
+  document.getElementById('fileInfo').textContent = '📄 ' + file.name + ' (' + Math.round(file.size/1024) + ' KB)';
+
+  var reader = new FileReader();
+  if(file.name.endsWith('.csv')){
+    reader.onload = function(ev){ parseCSV(ev.target.result, file.name); };
+    reader.readAsText(file, 'UTF-8');
+  } else {
+    reader.onload = function(ev){
+      // Send base64 to server for parsing
+      var b64 = ev.target.result.split(',')[1];
+      document.getElementById('previewContent').innerHTML = '<div style="padding:12px;color:#5f6368;font-size:12px">⏳ Разбираю файл...</div>';
+      document.getElementById('cardPreview').style.display='';
+      google.script.run
+        .withSuccessHandler(showPreview)
+        .withFailureHandler(function(e){ showImportMsg('Ошибка разбора: '+e,'err'); })
+        .parseXlsxBase64(b64);
+    };
+    reader.readAsDataURL(file);
+  }
+}
+
+function parseCSV(text, fname){
+  var lines = text.split(/\r?\n/).filter(function(l){ return l.trim(); });
+  // Skip header and example row
+  var header = lines[0].split(',').map(function(h){ return h.replace(/^"|"$/g,'').trim(); });
+  var rows = [];
+  for(var i=1; i<lines.length; i++){
+    var vals = csvSplitLine(lines[i]);
+    if(vals.every(function(v){ return !v.trim(); })) continue;
+    if(vals[0] && vals[0].trim().startsWith('⚠')) continue; // skip instruction row
+    var row = {};
+    header.forEach(function(h,hi){ row[h] = (vals[hi]||'').trim(); });
+    rows.push(row);
+  }
+  var type = fname.toLowerCase().indexOf('плательщик') !== -1 ? 'payers' : 'vehicles';
+  showPreview({ rows: rows, type: type, source: 'csv' });
+}
+
+function csvSplitLine(line){
+  var result=[], cur='', inQ=false;
+  for(var i=0;i<line.length;i++){
+    if(line[i]==='"'){ inQ=!inQ; } 
+    else if(line[i]===','&&!inQ){ result.push(cur); cur=''; }
+    else { cur+=line[i]; }
+  }
+  result.push(cur);
+  return result;
+}
+
+function showPreview(data){
+  parsedData = data;
+  importType = data.type;
+  var rows = data.rows;
+
+  if(!rows||!rows.length){
+    document.getElementById('previewContent').innerHTML = '<div style="padding:12px;color:#D93025;font-size:12px">⚠️ Данные не найдены. Проверь формат файла.</div>';
+    return;
+  }
+
+  // Filter out example rows
+  rows = rows.filter(function(r){
+    var vals = Object.values(r).join('');
+    return vals && !vals.startsWith('⚠') && vals.trim() !== '';
+  });
+  parsedData.rows = rows;
+
+  var type = data.type;
+  document.getElementById('previewCount').textContent = '— ' + type + ', ' + rows.length + ' строк';
+
+  var keys = Object.keys(rows[0]).slice(0, type==='payers' ? 5 : 7);
+  var html = '<table class="preview-table"><tr>';
+  keys.forEach(function(k){ html += '<th>'+k+'</th>'; });
+  html += '</tr>';
+
+  var shown = Math.min(rows.length, 5);
+  for(var i=0;i<shown;i++){
+    html += '<tr>';
+    keys.forEach(function(k){ html += '<td>'+(rows[i][k]||'')+'</td>'; });
+    html += '</tr>';
+  }
+  if(rows.length > shown) html += '<tr><td colspan="'+keys.length+'" style="color:#5f6368;font-size:10px;padding:4px 6px">...ещё '+(rows.length-shown)+' строк</td></tr>';
+  html += '</table>';
+
+  document.getElementById('previewContent').innerHTML = html;
+  document.getElementById('cardPreview').style.display='';
+  document.getElementById('importStats').style.display='';
+  document.getElementById('importStats').textContent =
+    '📊 Тип: ' + (type==='payers'?'Плательщики':'Автомобили') + ' · Строк для импорта: ' + rows.length;
+  document.getElementById('btnImport').style.display='';
+}
+
+function doImport(){
+  if(!parsedData||!parsedData.rows.length) return;
+  document.getElementById('btnImport').disabled=true;
+  document.getElementById('btnImport').textContent='⏳ Импортирую...';
+  google.script.run
+    .withSuccessHandler(function(r){
+      document.getElementById('btnImport').disabled=false;
+      document.getElementById('btnImport').textContent='✅ Импортировать';
+      if(r.ok) showImportMsg('✅ Импортировано: '+r.added+' добавлено, '+r.updated+' обновлено.','ok');
+      else     showImportMsg('❌ '+r.error,'err');
+    })
+    .withFailureHandler(function(e){
+      document.getElementById('btnImport').disabled=false;
+      document.getElementById('btnImport').textContent='✅ Импортировать';
+      showImportMsg('❌ '+e,'err');
+    })
+    .importData(parsedData);
+}
+
+function showImportMsg(t,c){ msg('importMsg',t,c); }
+
+// ====== MANUAL VEHICLE ======
+function saveVehicle(){
+  var vin   = document.getElementById('v_vin').value.trim();
+  var model = document.getElementById('v_model').value.trim();
+  var pid   = document.getElementById('v_payer').value;
+  if(!vin)  { msg('vehMsg','Введите VIN','err'); return; }
+  if(!model){ msg('vehMsg','Введите марку/модель','err'); return; }
+  if(!pid)  { msg('vehMsg','Выберите плательщика','err'); return; }
+
+  var data = {
+    vin: vin, model: model,
+    reg:         document.getElementById('v_reg').value.trim(),
+    tracker:     document.getElementById('v_tracker').value.trim(),
+    mount:       document.getElementById('v_mount').value,
+    connect:     document.getElementById('v_connect').value,
+    connectedTo: document.getElementById('v_connectedTo').value,
+    payerId:     pid,
+    payerName:   document.getElementById('v_payer').options[document.getElementById('v_payer').selectedIndex].text,
+    operator:    document.getElementById('v_operator').value.trim(),
+    comment:     document.getElementById('v_comment').value.trim()
+  };
+
+  google.script.run
+    .withSuccessHandler(function(r){
+      if(r.ok){ msg('vehMsg','✅ Автомобиль добавлен (строка '+r.row+')','ok'); clearVehicleForm(); }
+      else msg('vehMsg','❌ '+r.error,'err');
+    })
+    .withFailureHandler(function(e){ msg('vehMsg','❌ '+e,'err'); })
+    .addVehicleManual(data);
+}
+
+function clearVehicleForm(){
+  ['v_vin','v_model','v_reg','v_tracker','v_mount','v_connect','v_connectedTo','v_operator','v_comment'].forEach(function(id){
+    document.getElementById(id).value='';
+  });
+  document.getElementById('v_payer').selectedIndex=0;
+  document.getElementById('newPayerBlock').style.display='none';
+}
+
+function onPayerSelChange(){
+  var v = document.getElementById('v_payer').value;
+  document.getElementById('newPayerBlock').style.display = (v==='__new__') ? '' : 'none';
+}
+
+function cancelNewPayer(){
+  document.getElementById('newPayerBlock').style.display='none';
+  document.getElementById('v_payer').value='';
+  ['np_name','np_contract','np_phone','np_email'].forEach(function(id){ document.getElementById(id).value=''; });
+}
+
+function createPayerInline(){
+  var name     = document.getElementById('np_name').value.trim();
+  var contract = document.getElementById('np_contract').value.trim();
+  if(!name)     { alert('Введите название юрлица'); return; }
+  if(!contract) { alert('Введите номер договора'); return; }
+
+  var data = { name:name, contract:contract,
+    phone: document.getElementById('np_phone').value.trim(),
+    email: document.getElementById('np_email').value.trim(),
+    contact:'', comment:'' };
+
+  google.script.run
+    .withSuccessHandler(function(r){
+      if(!r.ok){ alert('Ошибка: '+r.error); return; }
+      // Add to dropdown and select
+      var s = document.getElementById('v_payer');
+      // Remove __new__ option temporarily
+      var newOpt = s.querySelector('option[value="__new__"]');
+      var opt = document.createElement('option');
+      opt.value = r.id; opt.textContent = name;
+      s.insertBefore(opt, newOpt);
+      s.value = r.id;
+      document.getElementById('newPayerBlock').style.display='none';
+      ['np_name','np_contract','np_phone','np_email'].forEach(function(id){ document.getElementById(id).value=''; });
+      msg('vehMsg','✅ Плательщик «'+name+'» создан ('+r.id+')','ok');
+    })
+    .withFailureHandler(function(e){ alert('Ошибка: '+e); })
+    .addPayerManual(data);
+}
+
+// ====== MANUAL PAYER ======
+function savePayer(){
+  var name     = document.getElementById('p_name').value.trim();
+  var contract = document.getElementById('p_contract').value.trim();
+  if(!name)     { msg('payMsg','Введите название юрлица','err'); return; }
+  if(!contract) { msg('payMsg','Введите номер договора','err'); return; }
+
+  var data = {
+    name:     name,
+    contract: contract,
+    contact:  document.getElementById('p_contact').value.trim(),
+    phone:    document.getElementById('p_phone').value.trim(),
+    email:    document.getElementById('p_email').value.trim(),
+    comment:  document.getElementById('p_comment').value.trim()
+  };
+
+  google.script.run
+    .withSuccessHandler(function(r){
+      if(r.ok){
+        msg('payMsg','✅ Плательщик добавлен. ID: '+r.id,'ok');
+        clearPayerForm();
+        // Refresh payer dropdown
+        google.script.run.withSuccessHandler(function(payers){
+          var s = document.getElementById('v_payer');
+          s.innerHTML = '<option value="">— выберите —</option>';
+          payers.forEach(function(p){
+            var o = document.createElement('option'); o.value=p.id; o.textContent=p.name; s.appendChild(o);
+          });
+        }).getPayersList();
+      } else msg('payMsg','❌ '+r.error,'err');
+    })
+    .withFailureHandler(function(e){ msg('payMsg','❌ '+e,'err'); })
+    .addPayerManual(data);
+}
+
+function clearPayerForm(){
+  ['p_name','p_contract','p_contact','p_phone','p_email','p_comment'].forEach(function(id){
+    document.getElementById(id).value='';
+  });
+}
+
+function downloadTemplate(){
+  google.script.run.withSuccessHandler(function(url){
+    if(url){
+      window.open(url,'_blank');
+    } else {
+      // Файл не найден в Drive — показываем инструкцию
+      document.getElementById('tplInstructions').style.display='';
+    }
+  }).getTemplateDownloadUrl();
+}
+
+function msg(id, text, cls){
+  var el = document.getElementById(id);
+  el.textContent = text; el.className='msg '+cls; el.style.display='block';
+  if(cls==='ok') setTimeout(function(){ el.style.display='none'; }, 6000);
+}
+</script>
+</body>
+</html>
