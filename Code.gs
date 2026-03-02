@@ -4,7 +4,7 @@
 // ============================================================
 
 // ---- НАСТРОЙКИ (заполни перед запуском) ----
-var IGETIS_TOKEN = 'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1lIjoid2VAaWdldGlzLnBybyIsInRva2VuX2lkIjoiNDEwNmNjODAtNjljOC00YWQzLTg2YTQtMTEyYWE3ZDNiYTI0IiwiY29udHJhZ2VudF9pZCI6IjQyZTQ0ZGY2LWRjZTQtNGNlMy1hMjY1LTVlOTZhOWYzNTMyNSIsImh0dHA6Ly9zY2hlbWFzLm1pY3Jvc29mdC5jb20vd3MvMjAwOC8wNi9pZGVudGl0eS9jbGFpbXMvcm9sZSI6IkRlYWxlckFkbWluIiwibmJmIjoxNzcyMTA3MDY2LCJleHAiOjE4MDM1ODkyMDAsImlzcyI6InJ1LmExdHJhY2suYXBpLmlzcy5hcHAudjMiLCJhdWQiOiJydS5hMXRyYWNrLmFwaS5hdWQuYXBwIn0.X5s1SQ8FC5XFfX5OgfnBwqYnV1OyoTGwn1KccjvkihpjPWa2EhfXjtlp7dt49v2DphdqXEUdDnjgmTuNQ4YVmpb67U-ZgVio-_MxA269RTM9vOYJLI9ZIpwxOuUsFTWHrBRZUCEUY5tcUidwcx1sfCeDyEexhxYRfh0lWChkAV80dveoihyqLkJEw_E3u6FsbBmcXqHk57e14OFfBgURMnPlnK60Ry9Gdpdk8NRKAlroAJ7UXAqkvpba8r-nspfWbMrSa3-CD9Af-RWn7330ZRr5AojpIfW260UAYVjzhIccWzhhU-9hx0D8HatvWihi0odldaTorbzPoF9rGzOt0Q';
+var IGETIS_TOKEN = PropertiesService.getScriptProperties().getProperty('IGETIS_TOKEN') || '';
 var NOTIFY_EMAIL = 'we@igetis.pro';
 var NOTIFY_DAYS  = 30;
 
