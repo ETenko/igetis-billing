@@ -1109,20 +1109,59 @@ function getTemplateDownloadUrl() {
 // Парсинг Excel из base64 (через Utilities)
 function parseXlsxBase64(b64) {
   try {
+    // Загружаем xlsx на Drive через UrlFetchApp (не требует Advanced Drive Service)
+    var token = ScriptApp.getOAuthToken();
     var bytes = Utilities.base64Decode(b64);
     var blob  = Utilities.newBlob(bytes, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'import.xlsx');
-    // Конвертируем в Google Sheets для парсинга
-    var tmpFile = Drive.Files.insert(
-      { title: '_tmp_igetis_import', mimeType: MimeType.GOOGLE_SHEETS },
-      blob, { convert: true }
+
+    // Шаг 1: загружаем как xlsx
+    var uploadResp = UrlFetchApp.fetch(
+      'https://www.googleapis.com/upload/drive/v3/files?uploadType=media',
+      {
+        method: 'post',
+        contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        payload: blob.getBytes(),
+        headers: { 'Authorization': 'Bearer ' + token },
+        muteHttpExceptions: true
+      }
     );
-    var tmpSS = SpreadsheetApp.openById(tmpFile.id);
+    if (uploadResp.getResponseCode() !== 200) {
+      throw new Error('Upload failed: ' + uploadResp.getContentText());
+    }
+    var fileId = JSON.parse(uploadResp.getContentText()).id;
+
+    // Шаг 2: конвертируем в Google Sheets через copy
+    var convertResp = UrlFetchApp.fetch(
+      'https://www.googleapis.com/drive/v3/files/' + fileId + '/copy',
+      {
+        method: 'post',
+        contentType: 'application/json',
+        payload: JSON.stringify({ name: '_tmp_igetis_import', mimeType: 'application/vnd.google-apps.spreadsheet' }),
+        headers: { 'Authorization': 'Bearer ' + token },
+        muteHttpExceptions: true
+      }
+    );
+    if (convertResp.getResponseCode() !== 200) {
+      // Удаляем загруженный файл
+      UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/files/' + fileId,
+        { method: 'delete', headers: { 'Authorization': 'Bearer ' + token }, muteHttpExceptions: true });
+      throw new Error('Convert failed: ' + convertResp.getContentText());
+    }
+    var sheetId = JSON.parse(convertResp.getContentText()).id;
+
+    // Шаг 3: парсим
+    var tmpSS = SpreadsheetApp.openById(sheetId);
     var result = parseImportSpreadsheet(tmpSS);
-    // Удаляем временный файл
-    DriveApp.getFileById(tmpFile.id).setTrashed(true);
+
+    // Шаг 4: удаляем оба временных файла
+    UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/files/' + fileId,
+      { method: 'delete', headers: { 'Authorization': 'Bearer ' + token }, muteHttpExceptions: true });
+    UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/files/' + sheetId,
+      { method: 'delete', headers: { 'Authorization': 'Bearer ' + token }, muteHttpExceptions: true });
+
     return result;
   } catch(e) {
-    Logger.log('parseXlsxBase64 ERROR: ' + e.message + ' | stack: ' + e.stack);
+    Logger.log('parseXlsxBase64 ERROR: ' + e.message);
     return { rows: [], type: 'vehicles', error: e.message };
   }
 }
