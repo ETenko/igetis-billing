@@ -1130,40 +1130,59 @@ function parseImportSpreadsheet(ss) {
   var type = 'vehicles';
   var targetSheet = null;
 
-  // Определяем тип по имени листа
   for (var i = 0; i < sheets.length; i++) {
-    var name = sheets[i].getName().toLowerCase();
-    if (name.indexOf('плательщик') !== -1 || name.indexOf('payer') !== -1) {
-      targetSheet = sheets[i];
-      type = 'payers';
-      break;
+    var sname = sheets[i].getName().toLowerCase();
+    if (sname.indexOf('плательщик') !== -1 || sname.indexOf('payer') !== -1) {
+      targetSheet = sheets[i]; type = 'payers'; break;
     }
-    if (name.indexOf('авто') !== -1 || name.indexOf('vehicle') !== -1) {
-      targetSheet = sheets[i];
-      type = 'vehicles';
+    if (sname.indexOf('авто') !== -1 || sname.indexOf('vehicle') !== -1) {
+      targetSheet = sheets[i]; type = 'vehicles';
     }
   }
   if (!targetSheet) targetSheet = sheets[0];
 
   var lastRow = targetSheet.getLastRow();
-  if (lastRow < 3) return { rows: [], type: type };
+  var lastCol = Math.max(targetSheet.getLastColumn(), 1);
+  if (lastRow < 2) return { rows: [], type: type };
 
-  // Строка 2 = заголовки, данные с строки 3 (пропускаем пример и предупреждение)
-  var headerRow = targetSheet.getRange(2, 1, 1, targetSheet.getLastColumn()).getValues()[0]
-    .map(function(h){ return String(h).replace(/\s*\*/g,'').trim(); });
+  // Автоопределение строки заголовков: ищем строку с >=2 ключевых слов
+  var MARKERS = ['vin','марка','модель','model','название','name','плательщик','payer','гос','номер','телефон'];
+  var allData = targetSheet.getRange(1, 1, Math.min(lastRow, 8), lastCol).getValues();
+  var headerRowIdx = 0;
+  for (var ri = 0; ri < Math.min(allData.length, 5); ri++) {
+    var rowStr = allData[ri].join(' ').toLowerCase();
+    var hits = 0;
+    for (var mi = 0; mi < MARKERS.length; mi++) { if (rowStr.indexOf(MARKERS[mi]) !== -1) hits++; }
+    if (hits >= 2) { headerRowIdx = ri; break; }
+  }
 
-  var rows = [];
-  var dataRange = targetSheet.getRange(3, 1, lastRow - 2, targetSheet.getLastColumn()).getValues();
-  dataRange.forEach(function(row) {
-    var allEmpty = row.every(function(c){ return !String(c).trim(); });
-    if (allEmpty) return;
-    // Пропускаем строку с предупреждением
-    if (String(row[0]).indexOf('⚠') !== -1) return;
-    var obj = {};
-    headerRow.forEach(function(h, i) { if (h) obj[h] = String(safeVal(row[i]) || '').trim(); });
-    rows.push(obj);
+  var headerRow = allData[headerRowIdx].map(function(h){
+    return String(h).replace(/\s*\*/g, '').trim();
   });
 
+  var rows = [];
+  for (var di = headerRowIdx + 1; di < allData.length; di++) {
+    var row = allData[di];
+    if (row.every(function(c){ return !String(c).trim(); })) continue;
+    if (String(row[0]).indexOf('⚠') !== -1) continue;
+    if (String(row[0]).indexOf('X9F3') !== -1) continue; // пример из шаблона
+    var obj = {};
+    headerRow.forEach(function(h, ci) {
+      if (!h) return;
+      var cell = row[ci];
+      var val = '';
+      if (cell instanceof Date && !isNaN(cell)) {
+        val = Utilities.formatDate(cell, 'Europe/Moscow', 'dd.MM.yyyy');
+      } else {
+        val = String(safeVal(cell) || '').trim();
+      }
+      obj[h] = val;
+    });
+    if (Object.keys(obj).some(function(k){ return obj[k]; })) rows.push(obj);
+  }
+
+  Logger.log('parseImport: type=' + type + ' headerRowIdx=' + headerRowIdx +
+    ' headers=' + JSON.stringify(headerRow) + ' rows=' + rows.length);
   return { rows: rows, type: type };
 }
 
@@ -1321,9 +1340,13 @@ function addPayerManual(d) {
     if (!sh) return { ok: false, error: 'Лист «Плательщики» не найден' };
 
     var id = generateManualId_();
-    sh.appendRow([id, d.name, d.contact, d.phone, d.email, d.contract]);
-    // Зелёный фон — визуально отличается от синего (API)
-    sh.getRange(sh.getLastRow(), 1, 1, 6).setBackground('#e6f4ea');
+    sh.appendRow([id, d.name, d.contact, '', d.email, d.contract]);
+    var newRow = sh.getLastRow();
+    // Телефон записываем отдельно как @TEXT чтобы +7... не воспринималось как формула
+    if (d.phone) {
+      sh.getRange(newRow, 4).setNumberFormat('@').setValue(d.phone);
+    }
+    sh.getRange(newRow, 1, 1, 6).setBackground('#e6f4ea');
 
     // Обновляем dropdown
     var shVeh = ss.getSheetByName(SHEET_VEHICLES);
@@ -1677,8 +1700,13 @@ function runAudit() {
   stats.totalPayers = payers.length;
 
   var payerIds = {};
-  vehicles.forEach(function(v){ if(v.payerId) payerIds[v.payerId]=true; if(v.payer) payerIds[v.payer]=true; });
-  payers.filter(function(p){ return !payerIds[p.id]&&!payerIds[p.name]; })
+  vehicles.forEach(function(v){
+    if (v.payerId) payerIds[v.payerId.trim().toLowerCase()] = true;
+    if (v.payer)   payerIds[v.payer.trim().toLowerCase()]   = true;
+  });
+  payers.filter(function(p){
+    return !payerIds[p.id.trim().toLowerCase()] && !payerIds[p.name.trim().toLowerCase()];
+  })
     .forEach(function(p){ issues.push({sev:'⚪',cat:'Плательщик',msg:'Нет авто у плательщика: '+p.name,sheet:SHEET_PAYERS,row:p.row,gid:gidPay}); });
   payers.filter(function(p){ return p.id.indexOf('MAN-')===0&&!p.contract; })
     .forEach(function(p){ issues.push({sev:'🟡',cat:'Плательщик',msg:'Нет договора: '+p.name,sheet:SHEET_PAYERS,row:p.row,gid:gidPay}); });
@@ -1737,6 +1765,20 @@ function runAudit() {
     ['','','','','',''],                                                  // 11
   ];
 
+  // Сортируем: 🔴 → 🟡 → ⚪; внутри «Оплата» — по убыванию дней просрочки
+  issues.sort(function(a, b) {
+    var order = {'🔴': 0, '🟡': 1, '⚪': 2};
+    var sa = order[a.sev] !== undefined ? order[a.sev] : 9;
+    var sb = order[b.sev] !== undefined ? order[b.sev] : 9;
+    if (sa !== sb) return sa - sb;
+    if (a.cat === 'Оплата' && b.cat === 'Оплата') {
+      var da = parseInt((a.msg.match(/(\d+)\s*дн/) || [0,0])[1]) || 0;
+      var db = parseInt((b.msg.match(/(\d+)\s*дн/) || [0,0])[1]) || 0;
+      return db - da;
+    }
+    return 0;
+  });
+
   if (issues.length === 0) {
     staticRows.push(['✅ Проблем не обнаружено!','','','','','']);
     shAudit.getRange(1,1,staticRows.length,6).setValues(staticRows);
@@ -1756,7 +1798,7 @@ function runAudit() {
       if (iss.row && iss.gid !== undefined) {
         var cellAddr = 'A' + iss.row;
         var url = ssUrl + '#gid=' + iss.gid + '&range=' + cellAddr;
-        var formula = '=HYPERLINK("' + url + '",">> ' + iss.row + '")';
+        var formula = '=HYPERLINK("' + url + '";">> ' + iss.row + '")';
         shAudit.getRange(dataRow, 6).setFormula(formula)
           .setFontColor('#1a73e8').setFontWeight('bold');
       } else {

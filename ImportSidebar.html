@@ -105,6 +105,7 @@ textarea { resize: vertical; min-height: 60px; }
         <div class="hint">.xlsx, .xls, .csv</div>
       </div>
       <div id="fileInfo" style="display:none;font-size:12px;color:#0F9D58;font-weight:600;margin-bottom:6px"></div>
+
     </div>
   </div>
 
@@ -282,7 +283,10 @@ function showPreview(data){
   var rows = data.rows;
 
   if(!rows||!rows.length){
-    document.getElementById('previewContent').innerHTML = '<div style="padding:12px;color:#D93025;font-size:12px">⚠️ Данные не найдены. Проверь формат файла.</div>';
+    document.getElementById('cardPreview').style.display='';
+    document.getElementById('previewContent').innerHTML =
+      '<div style="padding:12px;color:#D93025;font-size:12px">⚠️ Данные не найдены. Проверь формат файла.</div>';
+    setTimeout(function(){ resetFileImport(); }, 3000);
     return;
   }
 
@@ -476,6 +480,22 @@ function msg(id, text, cls){
   el.textContent = text; el.className='msg '+cls; el.style.display='block';
   if(cls==='ok') setTimeout(function(){ el.style.display='none'; }, 6000);
 }
+
+function resetFileImport(){
+  // Сбрасываем всё состояние файлового импорта
+  parsedData = null;
+  document.getElementById('fileInput').value = '';
+  document.getElementById('fileInfo').style.display = 'none';
+  document.getElementById('fileInfo').textContent = '';
+  document.getElementById('cardPreview').style.display = 'none';
+  document.getElementById('previewContent').innerHTML = '';
+
+  var previewCount = document.getElementById('previewCount');
+  if (previewCount) previewCount.textContent = '';
+  var importBtn = document.getElementById('btnImport');
+  if (importBtn) importBtn.style.display = 'none';
+}
+
 </script>
 </body>
 </html>
