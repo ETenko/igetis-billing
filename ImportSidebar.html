@@ -283,10 +283,11 @@ function showPreview(data){
   var rows = data.rows;
 
   if(!rows||!rows.length){
+    var errDetail = data.error ? '<br><span style="font-size:10px;color:#888">Ошибка: ' + data.error + '</span>' : '';
     document.getElementById('cardPreview').style.display='';
     document.getElementById('previewContent').innerHTML =
-      '<div style="padding:12px;color:#D93025;font-size:12px">⚠️ Данные не найдены. Проверь формат файла.</div>';
-    setTimeout(function(){ resetFileImport(); }, 3000);
+      '<div style="padding:12px;color:#D93025;font-size:12px">⚠️ Данные не найдены. Проверь формат файла.' + errDetail + '</div>';
+    setTimeout(function(){ resetFileImport(); }, 5000);
     return;
   }
 

@@ -37,6 +37,7 @@ function onOpen() {
     .addItem('🏢 Синхронизировать плательщиков из API', 'syncPayersFromAPI')
     .addItem('🔍 Диагностика API', 'debugAPI')
     .addItem('🔎 Найти устройство по VIN в API', 'debugVIN')
+    .addItem('🔬 Диагностика последнего импорта', 'debugImportFile')
     .addSeparator()
     .addItem('Обновить дашборд', 'updateDashboard')
     .addItem('Проверить и отправить уведомления', 'checkAndNotify')
@@ -1121,6 +1122,7 @@ function parseXlsxBase64(b64) {
     DriveApp.getFileById(tmpFile.id).setTrashed(true);
     return result;
   } catch(e) {
+    Logger.log('parseXlsxBase64 ERROR: ' + e.message + ' | stack: ' + e.stack);
     return { rows: [], type: 'vehicles', error: e.message };
   }
 }
@@ -1145,44 +1147,55 @@ function parseImportSpreadsheet(ss) {
   var lastCol = Math.max(targetSheet.getLastColumn(), 1);
   if (lastRow < 2) return { rows: [], type: type };
 
-  // Автоопределение строки заголовков: ищем строку с >=2 ключевых слов
+  // Читаем первые 10 строк для поиска заголовков
   var MARKERS = ['vin','марка','модель','model','название','name','плательщик','payer','гос','номер','телефон'];
-  var allData = targetSheet.getRange(1, 1, Math.min(lastRow, 8), lastCol).getValues();
-  var headerRowIdx = 0;
-  for (var ri = 0; ri < Math.min(allData.length, 5); ri++) {
-    var rowStr = allData[ri].join(' ').toLowerCase();
+  var scanRows = targetSheet.getRange(1, 1, Math.min(lastRow, 10), lastCol).getValues();
+  var headerRowIdx = 0; // по умолчанию строка 1
+  for (var ri = 0; ri < scanRows.length; ri++) {
+    var rowStr = scanRows[ri].join(' ').toLowerCase();
     var hits = 0;
-    for (var mi = 0; mi < MARKERS.length; mi++) { if (rowStr.indexOf(MARKERS[mi]) !== -1) hits++; }
+    for (var mi = 0; mi < MARKERS.length; mi++) {
+      if (rowStr.indexOf(MARKERS[mi]) !== -1) hits++;
+    }
     if (hits >= 2) { headerRowIdx = ri; break; }
   }
 
-  var headerRow = allData[headerRowIdx].map(function(h){
+  // Заголовки из найденной строки
+  var headerRow = scanRows[headerRowIdx].map(function(h) {
     return String(h).replace(/\s*\*/g, '').trim();
   });
 
+  // Данные — читаем ВСЕ строки после заголовка отдельным запросом
+  var dataStartRow = headerRowIdx + 2; // +1 за нумерацию с 1, +1 пропускаем заголовок
   var rows = [];
-  for (var di = headerRowIdx + 1; di < allData.length; di++) {
-    var row = allData[di];
-    if (row.every(function(c){ return !String(c).trim(); })) continue;
-    if (String(row[0]).indexOf('⚠') !== -1) continue;
-    if (String(row[0]).indexOf('X9F3') !== -1) continue; // пример из шаблона
-    var obj = {};
-    headerRow.forEach(function(h, ci) {
-      if (!h) return;
-      var cell = row[ci];
-      var val = '';
-      if (cell instanceof Date && !isNaN(cell)) {
-        val = Utilities.formatDate(cell, 'Europe/Moscow', 'dd.MM.yyyy');
-      } else {
-        val = String(safeVal(cell) || '').trim();
-      }
-      obj[h] = val;
+  if (dataStartRow <= lastRow) {
+    var dataRange = targetSheet.getRange(dataStartRow, 1, lastRow - dataStartRow + 1, lastCol).getValues();
+    dataRange.forEach(function(row) {
+      if (row.every(function(c) { return !String(c).trim(); })) return; // пустая строка
+      var first = String(row[0]);
+      if (first.indexOf('⚠') !== -1) return;   // строка-предупреждение шаблона
+      if (first.indexOf('X9F3') !== -1) return; // строка-пример шаблона
+      var obj = {};
+      headerRow.forEach(function(h, ci) {
+        if (!h) return;
+        var cell = row[ci];
+        var val = '';
+        if (cell instanceof Date && !isNaN(cell)) {
+          val = Utilities.formatDate(cell, 'Europe/Moscow', 'dd.MM.yyyy');
+        } else {
+          val = String(safeVal(cell) || '').trim();
+        }
+        obj[h] = val;
+      });
+      if (Object.keys(obj).some(function(k) { return obj[k]; })) rows.push(obj);
     });
-    if (Object.keys(obj).some(function(k){ return obj[k]; })) rows.push(obj);
   }
 
-  Logger.log('parseImport: type=' + type + ' headerRowIdx=' + headerRowIdx +
-    ' headers=' + JSON.stringify(headerRow) + ' rows=' + rows.length);
+  Logger.log('parseImport: sheet="' + targetSheet.getName() + '" type=' + type +
+    ' headerRow=' + (headerRowIdx+1) + ' dataFrom=' + dataStartRow +
+    ' lastRow=' + lastRow + ' headers=' + JSON.stringify(headerRow) +
+    ' parsed=' + rows.length);
+
   return { rows: rows, type: type };
 }
 
@@ -1889,4 +1902,58 @@ function recoverLostVehicles() {
   ui.alert('Восстановлено авто: ' + lost.length + '\n\n' +
     'Добавлены в конец списка с зелёным фоном.\n' +
     'Запусти синхронизацию с API чтобы упорядочить список.');
+}
+
+// ============================================================
+// ДИАГНОСТИКА ИМПОРТА — запускать вручную из редактора Apps Script
+// Перед запуском: загрузи файл на Google Drive и вставь его ID ниже
+// ============================================================
+function debugImportFile() {
+  var ui = SpreadsheetApp.getUi();
+
+  // Ищем последний временный файл импорта если он не был удалён
+  var files = DriveApp.getFilesByName('_tmp_igetis_import');
+  var tmpSS = null;
+
+  if (files.hasNext()) {
+    var f = files.next();
+    tmpSS = SpreadsheetApp.openById(f.getId());
+    Logger.log('Найден временный файл: ' + f.getId());
+  } else {
+    ui.alert('Временный файл не найден.\n\n' +
+      'Попробуй так:\n' +
+      '1. Загрузи файл через сайдбар (получишь ошибку)\n' +
+      '2. НЕ закрывай редактор\n' +
+      '3. Сразу запусти debugImportFile — временный файл ещё может быть на диске\n\n' +
+      'Или: загрузи свой xlsx на Google Drive, открой его как Google Sheets\n' +
+      'и вставь ID таблицы в код функции.');
+    return;
+  }
+
+  var sheets = tmpSS.getSheets();
+  var info = 'Листов в файле: ' + sheets.length + '\n\n';
+
+  sheets.forEach(function(sh, idx) {
+    info += 'Лист ' + (idx+1) + ': ' + sh.getName() + '\n';
+    info += '  Строк: ' + sh.getLastRow() + ', Колонок: ' + sh.getLastColumn() + '\n';
+    if (sh.getLastRow() > 0 && sh.getLastColumn() > 0) {
+      var sample = sh.getRange(1, 1, Math.min(sh.getLastRow(), 5), Math.min(sh.getLastColumn(), 5)).getValues();
+      sample.forEach(function(row, ri) {
+        info += '  Строка ' + (ri+1) + ': ' + JSON.stringify(row.map(function(c){ return c instanceof Date ? c.toLocaleDateString() : String(c).substring(0,20); })) + '\n';
+      });
+    }
+    info += '\n';
+  });
+
+  // Запускаем parseImportSpreadsheet и смотрим результат
+  var result = parseImportSpreadsheet(tmpSS);
+  info += 'Результат парсинга:\n';
+  info += '  type: ' + result.type + '\n';
+  info += '  rows: ' + result.rows.length + '\n';
+  if (result.rows.length > 0) {
+    info += '  Первая строка: ' + JSON.stringify(result.rows[0]) + '\n';
+  }
+
+  Logger.log(info);
+  ui.alert(info.substring(0, 1500));
 }
