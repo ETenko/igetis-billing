@@ -299,7 +299,9 @@ function showPreview(data){
   parsedData.rows = rows;
 
   var type = data.type;
-  document.getElementById('previewCount').textContent = '— ' + type + ', ' + rows.length + ' строк';
+  // Переключаемся на вкладку «Из файла» — показываем превью там
+  switchTab('import');
+  document.getElementById('previewCount').textContent = '— ' + (type==='payers'?'Плательщики':'Автомобили') + ', ' + rows.length + ' строк';
 
   var keys = Object.keys(rows[0]).slice(0, type==='payers' ? 5 : 7);
   var html = '<table class="preview-table"><tr>';
@@ -331,8 +333,12 @@ function doImport(){
     .withSuccessHandler(function(r){
       document.getElementById('btnImport').disabled=false;
       document.getElementById('btnImport').textContent='✅ Импортировать';
-      if(r.ok) showImportMsg('✅ Импортировано: '+r.added+' добавлено, '+r.updated+' обновлено.','ok');
-      else     showImportMsg('❌ '+r.error,'err');
+      if(r.ok){
+        showImportMsg('✅ Импортировано: '+r.added+' добавлено, '+r.updated+' обновлено.','ok');
+        setTimeout(function(){ resetFileImport(); }, 2500);
+      } else {
+        showImportMsg('❌ '+r.error,'err');
+      }
     })
     .withFailureHandler(function(e){
       document.getElementById('btnImport').disabled=false;
